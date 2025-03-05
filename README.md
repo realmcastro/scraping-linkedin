@@ -70,7 +70,9 @@ python scraper.py --keywords "react" --job-type F --place 2
 
 linkedin-job-scraper/
 ├── scraper.py        # Main file that runs the scraper
+
 ├── requirements.txt  # Project dependencies
+
 └── README.md         # Project documentation
 
 ## ⚠️ Important Notes
