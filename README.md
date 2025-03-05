@@ -20,14 +20,15 @@ A simple scraper to search for jobs on LinkedIn based on keywords, job type, loc
 ## 📦 Installation
 
 1. Clone the repository:
-git clone git@github.com:realmcastro/scraping-linkedin.git
-cd linkedin-job-scraper
+`git clone git@github.com:realmcastro/scraping-linkedin.git`
+
+`cd linkedin-job-scraper`
 
 2. Install the dependencies:
-pip install -r requirements.txt
+`pip install -r requirements.txt`
 
 3. Run the scraper:
-python scraper.py
+`python scraper.py`
 
 ## 🔧 Usage
 
