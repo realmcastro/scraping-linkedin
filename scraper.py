@@ -4,8 +4,9 @@ from bs4 import BeautifulSoup
 from tqdm import tqdm
 from urllib.parse import quote as encode
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from time import sleep
+import argparse
 
 INIT_URL = 'https://www.linkedin.com/jobs/search'
 PAGE_URL = 'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search'
@@ -13,215 +14,160 @@ POST_URL = 'https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/'
 
 HEADERS = {"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36"}
 
-# PENCARIAN: keywords
-#       keywords=backend
-keywords = ''
-
-# WAKTU: f_TPR
-#   24 jam terakhir: r86400
-#   minggu lalu: r604800
-#   bulan lalu: r2592000
-#       f_TPR=r86400
-time_range = 'r86400'
-
-# LOKASI: location
-#   nama daerah
-#       location=Indonesia
-location = 'Indonesia'
-
-# JARAK: distance
-#   satuannya mil, opsi: 10, 25, 50, 75, 100
-#       distance=100
-distance = ''
-
-# JENIS PEKERJAAN: f_JT
-#   Purnawaktu: F
-#   Paruh Waktu: CP
-#   Kontrak: CC
-#   Sementara: T
-#   Sukarelawan: CV
-#   Lainnya: F
-#       f_JT=F,CP,F
-job_type = []
-
-# TEMPAT: f_WT
-#   Onsite: 1
-#   Remote: 2
-#   Hybrid: 3
-#       f_WT=1,3,2
-place = []
-
-limit_jobs = 0 # 0 => no limit
-
 def log_error(e):
-    f = open("log.txt", "a")
-    
-    f.write(f"{datetime.now()} ERROR {e}\n")
-    f.close()
+    with open("log.txt", "a") as f:
+        f.write(f"{datetime.now()} ERROR {e}\n")
 
 def log_info(i):
-    f = open("log.txt", "a")
-    f.write(f"{datetime.now()} INFO {i}\n")
-    f.close()
+    with open("log.txt", "a") as f:
+        f.write(f"{datetime.now()} INFO {i}\n")
 
-def params(start = 0):
-    return f"?keywords={encode(keywords)}&f_TPR={time_range}&location={encode(location)}&distance={distance}&f_JT={encode(','.join(job_type))}&f_WT={encode(','.join(place))}&position=1&pageNum=0&start={start}&sortBy=DD"
+def params(start=0):
+    params = [
+        ('f_TPR', time_range),
+        ('position', '1'),
+        ('pageNum', '0'),
+        ('start', str(start)),
+        ('sortBy', 'DD')
+    ]
+    
+    if keywords: params.append(('keywords', encode(keywords)))
+    if location: params.append(('location', encode(location)))
+    if distance: params.append(('distance', distance))
+    if job_type: params.append(('f_JT', ','.join(job_type)))
+    if place: params.append(('f_WT', ','.join(place)))
+    
+    return '?' + '&'.join([f"{k}={v}" for k, v in params])
 
 def job_result():
     if limit_jobs > 0:
         return limit_jobs
 
-    uri = INIT_URL + params()
-    res = requests.get(uri, headers=HEADERS)
-    soup = BeautifulSoup(res.text, 'html.parser')
-
-    job_count = soup.find('span', {'class': 'results-context-header__job-count'}).text
-
-    return int(job_count.strip().replace(",", "").replace("+", ""))
+    try:
+        uri = INIT_URL + params()
+        res = requests.get(uri, headers=HEADERS)
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        job_count_element = (soup.find('span', {'class': 'results-context-header__job-count'}) or 
+                            soup.find('span', {'class': 'results-context-header__new-jobs'}))
+        
+        if job_count_element:
+            job_count = job_count_element.text.strip().replace(",", "").replace("+", "")
+            return min(int(job_count), 1000)  # Limite máximo de segurança
+        return 1000  # Default se não encontrar contagem
     
-def job_id_list_per_page(start):
-    uri = PAGE_URL + params(start)
-    res = requests.get(uri, headers=HEADERS)
+    except Exception as e:
+        log_error(f"Error getting job count: {e}")
+        return 1000  # Default para continuar a execução
 
-    if res.status_code == 400:
+def job_id_list_per_page(start):
+    try:
+        uri = PAGE_URL + params(start)
+        res = requests.get(uri, headers=HEADERS, timeout=30)
+        
+        if res.status_code == 404:
+            return []
+            
+        if not res.ok:
+            log_info(f"Retrying page {start}...")
+            sleep(2)
+            return job_id_list_per_page(start)
+
+        soup = BeautifulSoup(res.text, 'html.parser')
+        return [li.find('div')['data-entity-urn'].split(':')[-1] 
+                for li in soup.find_all('li') 
+                if li.find('div') and li.find('div').has_attr('data-entity-urn')]
+                
+    except Exception as e:
+        log_error(f"Page {start} failed: {e}")
+        sleep(1)
         return []
 
-    if not res.ok or len(res.history) > 0:
-        log_error(f"failed to fetch page {start}")
-        log_info(f"{res.status_code} {res.history}")
-        sleep(0.02)
-        return job_id_list_per_page(start)
-
-    soup = BeautifulSoup(res.text, 'html.parser')
-
-    job_ids = []
-    job_list = soup.find_all('li')
-
-    for i in range(0, len(job_list)):
-        try:
-            job_id = job_list[i].find('div', {'class': 'base-card'}).get('data-entity-urn').split(':')[3]
-            job_ids.append(job_id)
-        except:
-            try:
-                job_id = job_list[i].find('a', {'class': 'base-card'}).get('data-entity-urn').split(':')[3]
-                job_ids.append(job_id)
-            except Exception as e:
-                log_error(e)
-                log_info(job_list[i])
-    return job_ids
-
-
 def job_detail(job_id):
-    uri = POST_URL + job_id
-    res = requests.get(uri, headers=HEADERS)
-
-    if not res.ok or len(res.history) > 0:
-        return job_detail(job_id)
-
-    soup = BeautifulSoup(res.text, 'html.parser')
-
-    detail = {
-        'title': None,
-        'company': None,
-        'location': None,
-        'id': job_id,
-        'link': uri,
-        'description': None,
-        'time': None,
-        'level': None,
-        'industry': None,
-        'type': None,
-        'function': None,
-    }
-
     try:
-        anchor_element = soup.find("div",{"class":"top-card-layout__entity-info"}).find("a")
-
-        detail['link'] = anchor_element.get('href')
-        detail['title'] = anchor_element.text.strip()
-    except Exception as e:
-        log_error(e)
-        log_info(f"cannot fetch job title for {job_id}")
-        log_info(soup)
-
-    try:
-        detail['company'] = soup.find('a', {'class': 'topcard__org-name-link'}).text.strip()
-    except:
-        try:
-            detail['company'] = soup.select_one('.topcard__flavor-row > span.topcard__flavor').text.strip()
-        except Exception as e:
-            log_error(e)
-            log_info(f"cannot fetch job company for {job_id}")
-            log_info(soup)
-
-    try:
-        detail['location'] = soup.select_one('h4.top-card-layout__second-subline > div.topcard__flavor-row > span.topcard__flavor.topcard__flavor--bullet').text.strip()
-    except Exception as e:
-        log_error(e)
-        log_info(f"cannot fetch job company for {job_id}")
-        log_info(soup)
-
-    try:
-        detail['time'] = soup.select_one('.posted-time-ago__text').text.strip()
-    except Exception as e:
-        log_error(e)
-        log_info(f"cannot fetch job time for {job_id}")
-        log_info(soup)
-
-    try:
-        detail['description'] = soup.select_one('.show-more-less-html__markup.show-more-less-html__markup--clamp-after-5').text.strip()
-    except Exception as e:
-        log_error(e)
-        log_info(f"cannot fetch job description for {job_id}")
-        log_info(soup)
-
-    try:
-        keys = {
-            'Tingkat senioritas': 'level',
-            'Seniority level': 'level',
-            'Fungsi pekerjaan': 'function',
-            'Job function': 'function',
-            'Jenis pekerjaan': 'type',
-            'Employment type': 'type',
-            'Industri': 'industry',
-            'Industries': 'industry',
+        uri = POST_URL + job_id
+        res = requests.get(uri, headers=HEADERS, timeout=30)
+        res.raise_for_status()
+        
+        soup = BeautifulSoup(res.text, 'html.parser')
+        detail = {
+            'title': soup.find('h2', {'class': 'top-card-layout__title'}).get_text(strip=True) if soup.find('h2', {'class': 'top-card-layout__title'}) else None,
+            'company': soup.find('a', {'class': 'topcard__org-name-link'}).get_text(strip=True) if soup.find('a', {'class': 'topcard__org-name-link'}) else None,
+            'location': soup.find('span', {'class': 'topcard__flavor--bullet'}).get_text(strip=True) if soup.find('span', {'class': 'topcard__flavor--bullet'}) else None,
+            'id': job_id,
+            'link': uri,
+            'description': (soup.find('div', {'class': 'show-more-less-html__markup'}).get_text(strip=True) 
+                          if soup.find('div', {'class': 'show-more-less-html__markup'}) else None),
+            'time': soup.find('span', {'class': 'posted-time-ago__text'}).get_text(strip=True) if soup.find('span', {'class': 'posted-time-ago__text'}) else None,
         }
-        criterias = soup.select('li.description__job-criteria-item')
-        for i in range(0, len(criterias)):
-            key = criterias[i].select_one('.description__job-criteria-subheader').text.strip()
-            detail[keys[key]] = criterias[i].select_one('.description__job-criteria-text').text.strip()
+
+        criterias = soup.find_all('li', {'class': 'description__job-criteria-item'})
+        for crit in criterias:
+            key = crit.find('h3').get_text(strip=True)
+            value = crit.find('span').get_text(strip=True)
+            detail[key] = value
+            
+        return detail
+    
     except Exception as e:
-        log_error(e)
-        log_info(f"cannot fetch job criterias for {job_id}")
-        log_info(soup)
+        log_error(f"Job {job_id} failed: {e}")
+        return {'id': job_id, 'error': str(e)}
 
-    return detail
-
+def calculate_time_range(max_date):
+    if not max_date:
+        return 'r86400'  # Default: 24 horas
+    
+    max_date = datetime.strptime(max_date, '%Y-%m-%d')
+    delta = datetime.now() - max_date
+    return f"r{int(delta.total_seconds())}"
 
 def main():
-    job_ids = []
-    job_list = []
+    global keywords, location, time_range, distance, job_type, place, limit_jobs
     
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--keywords', type=str, default='', help='Palavras-chave para busca (ex: "react AND junior", "react OR angular")')
+    parser.add_argument('--location', type=str, default='Indonesia', help='Localização para filtrar')
+    parser.add_argument('--max-date', type=str, default='', help='Data máxima no formato YYYY-MM-DD')
+    parser.add_argument('--distance', type=str, default='', help='Distância em milhas')
+    parser.add_argument('--job-type', nargs='+', default=[], help='Tipos de emprego (F, CP, CC, etc)')
+    parser.add_argument('--place', nargs='+', default=[], help='Local de trabalho (1=Presencial, 2=Remoto)')
+    parser.add_argument('--limit-jobs', type=int, default=0, help='Limitar número de vagas')
+    args = parser.parse_args()
+    
+    # Atualizar variáveis globais com os argumentos
+    keywords = args.keywords
+    location = args.location
+    time_range = calculate_time_range(args.max_date)
+    distance = args.distance
+    job_type = args.job_type
+    place = args.place
+    limit_jobs = args.limit_jobs
+
     try:
-        total = job_result()
-        num_page = math.ceil(total/25)
-        print(f"{total} {'jobs' if total > 1 else 'job'} available within {num_page} {'pages' if num_page > 1 else 'page'}")
+        total_jobs = job_result()
+        num_pages = math.ceil(total_jobs / 25)
+        print(f"⏳ Encontradas ~{total_jobs} vagas ({num_pages} páginas)")
 
-        for i in tqdm(range(0, num_page), desc='Page'):
-            start = (i+1)*25
-            job_ids += job_id_list_per_page(start)
-
-        for i in tqdm(range(0, len(job_ids)), desc='Jobs'):
-            job_list.append(job_detail(job_ids[i]))
-
-        df = pd.DataFrame(job_list)
-        df.to_csv('out.csv', index=False, encoding='utf-8')
+        job_ids = []
+        for page in tqdm(range(num_pages), desc='📃 Páginas'):
+            job_ids += job_id_list_per_page(page * 25)
+            sleep(0.1)
         
-        print('Successfully exported available job(s) to out.csv')
-    except Exception as e:
-        log_error(e)
-        print(f"Fatal error, please check log.txt")
+        if limit_jobs > 0:
+            job_ids = job_ids[:limit_jobs]
 
+        jobs = []
+        for job_id in tqdm(job_ids, desc='🔍 Vagas'):
+            jobs.append(job_detail(job_id))
+            sleep(0.2)
+
+        df = pd.DataFrame(jobs).drop_duplicates('id')
+        df.to_csv('vagas.csv', index=False, encoding='utf-8-sig')
+        print(f"✅ {len(df)} vagas salvas em vagas.csv")
+
+    except Exception as e:
+        log_error(f"Fatal error: {e}")
+        print("❌ Erro grave - verifique log.txt")
 
 if __name__ == "__main__":
     main()
