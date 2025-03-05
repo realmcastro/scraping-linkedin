@@ -1,91 +1,95 @@
 # LinkedIn Job Scraper with Python
 
-Um scraper simples para buscar vagas no LinkedIn com base em palavras-chave, tipo de vaga, local e data máxima. Permite buscas avançadas com lógica booleana (AND/OR) e filtros detalhados.
+A simple scraper to search for jobs on LinkedIn based on keywords, job type, location and maximum date. Supports advanced searches with boolean logic (AND/OR) and detailed filters.
 
-## 🚀 Funcionalidades
+## 🚀 Features
 
-- 🔍 **Busca Avançada**: Utilize operadores booleanos (AND/OR) para combinações de palavras-chave
-- 🗂️ **Filtros de Vaga**: Filtre por tipo de vaga (tempo integral, meio período, contrato, etc.)
-- 📍 **Filtro de Localização**: Selecione entre presencial, remoto ou híbrido
-- 📅 **Filtro de Data**: Filtre as vagas por intervalo de tempo (últimas 24h, 7 dias, 30 dias)
-- 🎯 **Busca Simples**: Permite buscas simples por palavras-chave
+- 🔍 **Advanced Search**: Use boolean operators (AND/OR) for keyword combinations
 
-## 🛠️ Tecnologias
+- 🗂️ **Job Filters**: Filter by job type (full-time, part-time, contract, etc.)
+
+- 📍 **Location Filter**: Select between in-person, remote, or hybrid
+
+- 📅 **Date Filter**: Filter jobs by time range (last 24h, 7 days, 30 days)
+
+- 🎯 **Simple Search**: Allows simple searches by keywords
+
+## 🛠️ Technologies
 
 - Python
 - Requests
 - BeautifulSoup
-- argparse (para argumentos de linha de comando)
+- argparse (for command line arguments)
 
-## 📦 Instalação
+## 📦 Installation
 
-1. Clone o repositório:
+1. Clone the repository:
 
-git clone git@github.com:seu-usuario/linkedin-job-scraper.git  
+git clone git@github.com:realmcastro/scraping-linkedin.git
 cd linkedin-job-scraper
 
-2. Instale as dependências:
+2. Install the dependencies:
 
 pip install -r requirements.txt
 
-3. Execute o scraper:
+3. Run the scraper:
 
 python scraper.py
 
-## 🔧 Uso
+## 🔧 Usage
 
-### Busca Simples
+### Simple Search
 
-Para realizar uma busca simples por uma palavra-chave como "react":
+To perform a simple search for a keyword like "react":
 
 python scraper.py --keywords "react"
 
-### Busca Avançada (AND/OR)
+### Advanced Search (AND/OR)
 
-Para realizar uma busca combinada com operadores booleanos:
+To perform a combined search with boolean operators:
 
-python scraper.py --keywords "react AND junior"  
-python scraper.py --keywords "react OR angular"  
+python scraper.py --keywords "react AND junior"
+python scraper.py --keywords "react OR angular"
 python scraper.py --keywords "react OR angular AND junior"
 
-### Filtrar por Data Máxima
+### Filter by Maximum Date
 
-Para buscar vagas até uma data específica:
+To search for jobs up to a specific date:
 
 python scraper.py --keywords "react" --max-date "2023-10-01"
 
-### Filtrar por Tipo de Vaga e Local
+### Filter by Job Type and Location
 
-Para filtrar vagas por tipo e local:
+To filter jobs by type and location:
 
 python scraper.py --keywords "react" --job-type F --place 2
 
-### Para que serve `--job-type` e `--place`?
+### What are `--job-type` and `--place` for?
 
-- **--job-type**: Filtra o tipo de vaga. Valores possíveis:
-  - F → Purnawaktu (Tempo integral)
-  - CP → Paruh Waktu (Meio período)
-  - CC → Kontrak (Contrato)
-  - T → Sementara (Temporário)
-  - CV → Sukarelawan (Voluntário)
+- **--job-type**: Filters the job type. Possible values:
+- F → Purnawaktu (Full-time)
+- CP → Paruh Waktu (Part-time)
+- CC → Kontrak (Contract)
+- T → Sementara (Temporary)
+- CV → Sukarelawan (Volunteer)
 
-- **--place**: Filtra o local de trabalho. Valores possíveis:
-  - 1 → Presencial
-  - 2 → Remoto
-  - 3 → Híbrido
+- **--place**: Filters the job location. Possible values:
+- 1 → In-person
+- 2 → Remote
+- 3 → Hybrid
 
-## 📁 Estrutura do Projeto
+## 📁 Project Structure
 
-linkedin-job-scraper/  
-├── scraper.py           # Arquivo principal que executa o scraper  
-├── requirements.txt     # Dependências do projeto  
-└── README.md            # Documentação do projeto
+linkedin-job-scraper/
+├── scraper.py # Main file that runs the scraper
+├── requirements.txt # Project dependencies
+└── README.md # Project documentation
 
-## ⚠️ Observações Importantes
+## ⚠️ Important Notes
 
-- **Limitações**: O LinkedIn pode bloquear o acesso ao scraper após múltiplas requisições em um curto período.
-- **Compatibilidade**: Este projeto foi testado no Python 3.x.
+- **Limitations**: LinkedIn may block access to the scraper after multiple requests in a short period of time.
+- **Compatibility**: This project has been tested on Python 3.x.
 
-## 📝 Licença
+## 📝 License
 
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+This project is under the MIT license. See the [LICENSE](LICENSE) file for more details.
